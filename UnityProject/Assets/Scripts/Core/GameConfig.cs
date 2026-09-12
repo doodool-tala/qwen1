@@ -1,6 +1,7 @@
 using UnityEngine;
+using System.Collections.Generic;
 
-namespace ClashGame.Core
+namespace CoCGame.Core
 {
     /// <summary>
     /// Game configuration - can be loaded from ScriptableObject or JSON
@@ -47,7 +48,73 @@ namespace ClashGame.Core
         public int xpPerTroopTraining = 1;
         public int xpPerBattleWin = 10;
         public int xpPerBattleLoss = 3;
-        
+
+        [Header("Building Configurations")]
+        public List<BuildingConfig> buildingConfigs = new List<BuildingConfig>();
+
+        private Dictionary<BuildingType, BuildingConfig> buildingConfigMap;
+
+        public void Initialize()
+        {
+            buildingConfigMap = new Dictionary<BuildingType, BuildingConfig>();
+            foreach (var config in buildingConfigs)
+            {
+                buildingConfigMap[config.Type] = config;
+            }
+            
+            // Add default configs for any missing types
+            EnsureDefaultConfigs();
+        }
+
+        private void EnsureDefaultConfigs()
+        {
+            // Gold Mine
+            if (!buildingConfigMap.ContainsKey(BuildingType.GoldMine))
+                buildingConfigMap[BuildingType.GoldMine] = CreateDefaultConfig(BuildingType.GoldMine, "Gold Mine", 2, 15, 100, ResourceType.Gold, 10f, 300, false, true);
+            
+            // Elixir Collector
+            if (!buildingConfigMap.ContainsKey(BuildingType.ElixirCollector))
+                buildingConfigMap[BuildingType.ElixirCollector] = CreateDefaultConfig(BuildingType.ElixirCollector, "Elixir Collector", 2, 15, 100, ResourceType.Elixir, 10f, 300, false, true);
+
+            // Town Hall
+            if (!buildingConfigMap.ContainsKey(BuildingType.TownHall))
+                buildingConfigMap[BuildingType.TownHall] = CreateDefaultConfig(BuildingType.TownHall, "Town Hall", 4, 15, 0, ResourceType.Gold, 0f, 1000, false, false);
+
+            // Cannon
+            if (!buildingConfigMap.ContainsKey(BuildingType.Cannon))
+                buildingConfigMap[BuildingType.Cannon] = CreateDefaultConfig(BuildingType.Cannon, "Cannon", 2, 10, 250, ResourceType.Gold, 30f, 500, true, false);
+        }
+
+        private BuildingConfig CreateDefaultConfig(BuildingType type, string name, int size, int maxLevel, 
+            int baseCost, ResourceType costType, float baseTime, int hitpoints, bool isDefensive, bool producesResource)
+        {
+            return new BuildingConfig
+            {
+                Type = type,
+                Name = name,
+                Size = size,
+                MaxLevel = maxLevel,
+                BaseCost = baseCost,
+                CostType = costType,
+                BaseTime = baseTime,
+                Hitpoints = hitpoints,
+                IsDefensive = isDefensive,
+                ProducesResource = producesResource,
+                IsDecorative = false
+            };
+        }
+
+        public BuildingConfig GetBuildingConfig(BuildingType type)
+        {
+            if (buildingConfigMap == null) Initialize();
+            
+            if (buildingConfigMap.TryGetValue(type, out var config))
+                return config;
+            
+            Debug.LogWarning($"No config found for {type}, returning default");
+            return CreateDefaultConfig(type, type.ToString(), 2, 5, 100, ResourceType.Gold, 10f, 100, false, false);
+        }
+
         /// <summary>
         /// Calculate production rate based on building level
         /// Formula: baseRate * (1 + (level - 1) * 0.2)
@@ -99,6 +166,14 @@ namespace ClashGame.Core
             
             // Capacity doubles every 2 levels
             return baseCapacity * Mathf.FloorToInt(Mathf.Pow(2, buildingLevel / 2f));
+        }
+
+        /// <summary>
+        /// Calculate production multiplier based on level (+20% per level)
+        /// </summary>
+        public float GetProductionMultiplier(int level)
+        {
+            return 1.0f + (level - 1) * 0.2f;
         }
     }
 }

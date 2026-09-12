@@ -1,6 +1,7 @@
 using UnityEngine;
+using System.Collections.Generic;
 
-namespace ClashGame.Core
+namespace CoCGame.Core
 {
     /// <summary>
     /// Singleton pattern for GameManager - controls overall game state and flow
@@ -59,7 +60,8 @@ namespace ClashGame.Core
             playerData = LoadPlayerData();
             
             // Load game configuration
-            gameConfig = LoadGameConfig();
+            gameConfig = new GameConfig();
+            gameConfig.Initialize();
             
             // Set initial state
             ChangeState(GameState.Village);
@@ -108,21 +110,25 @@ namespace ClashGame.Core
         private void OnEnterVillage()
         {
             // Load village scene and show village UI
+            Debug.Log("Entering Village mode");
         }
 
         private void OnEnterBattle()
         {
             // Load battle scene and start battle
+            Debug.Log("Entering Battle mode");
         }
 
         private void OnEnterShop()
         {
             // Show shop UI
+            Debug.Log("Entering Shop mode");
         }
 
         private void OnEnterSettings()
         {
             // Show settings UI
+            Debug.Log("Entering Settings mode");
         }
 
         #endregion
@@ -134,7 +140,7 @@ namespace ClashGame.Core
         /// </summary>
         private PlayerData LoadPlayerData()
         {
-            // TODO: Implement actual save/load system
+            // TODO: Implement actual save/load system with PlayerPrefs or JSON
             // For now, return default data
             return new PlayerData
             {
@@ -154,17 +160,8 @@ namespace ClashGame.Core
         /// </summary>
         public void SavePlayerData()
         {
-            // TODO: Implement save system
+            // TODO: Implement save system with JSON serialization
             Debug.Log("Saving player data...");
-        }
-
-        /// <summary>
-        /// Load game configuration
-        /// </summary>
-        private GameConfig LoadGameConfig()
-        {
-            // TODO: Load from ScriptableObject or JSON
-            return new GameConfig();
         }
 
         #endregion
@@ -188,11 +185,12 @@ namespace ClashGame.Core
                     playerData.darkElixir += amount;
                     break;
                 case ResourceType.Gems:
-                    playerData.gems += amount;
+                    playerData.gems += (int)amount;
                     break;
             }
             
             Debug.Log($"Added {amount} {type}. New balance: {GetResourceAmount(type)}");
+            UIManager.Instance?.UpdateResourceDisplay();
         }
 
         /// <summary>
@@ -216,15 +214,32 @@ namespace ClashGame.Core
                         playerData.darkElixir -= amount;
                         break;
                     case ResourceType.Gems:
-                        playerData.gems -= amount;
+                        playerData.gems -= (int)amount;
                         break;
                 }
                 
                 Debug.Log($"Removed {amount} {type}. New balance: {GetResourceAmount(type)}");
+                UIManager.Instance?.UpdateResourceDisplay();
                 return true;
             }
             
             Debug.LogWarning($"Insufficient {type}! Required: {amount}, Available: {currentAmount}");
+            return false;
+        }
+
+        /// <summary>
+        /// Try to deduct resource for building upgrade
+        /// </summary>
+        public bool TryUpgradeResource(Building building)
+        {
+            BuildingConfig config = gameConfig.GetBuildingConfig(building.BuildingType);
+            long cost = gameConfig.CalculateUpgradeCost(config.CostType, config.BaseCost, building.Level);
+            
+            if (RemoveResource(config.CostType, cost))
+            {
+                building.StartUpgrade();
+                return true;
+            }
             return false;
         }
 
@@ -246,6 +261,29 @@ namespace ClashGame.Core
                 default:
                     return 0;
             }
+        }
+
+        /// <summary>
+        /// Check if player can afford a building
+        /// </summary>
+        public bool CanAffordBuilding(BuildingType type)
+        {
+            BuildingConfig config = gameConfig.GetBuildingConfig(type);
+            return GetResourceAmount(config.CostType) >= config.BaseCost;
+        }
+
+        #endregion
+
+        #region Building Management
+
+        public bool TryUpgradeBuilding(Building building)
+        {
+            return TryUpgradeResource(building);
+        }
+
+        public bool DeductResource(long amount, ResourceType type)
+        {
+            return RemoveResource(type, amount);
         }
 
         #endregion
